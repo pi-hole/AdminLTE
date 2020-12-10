@@ -5,6 +5,9 @@
  *  This file is copyright under the latest version of the EUPL.
  *  Please see LICENSE file for your rights under this license. */
 
+/* global utils:false */
+var token = $("#token").text();
+
 $(function () {
   $("[data-static]").on("click", function () {
     var row = $(this).closest("tr");
@@ -61,7 +64,7 @@ $(function () {
   });
 });
 $(".confirm-poweroff").confirm({
-  text: "Are you sure you want to send a poweroff command to your Pi-Hole?",
+  text: "Are you sure you want to send a poweroff command to your Pi-hole?",
   title: "Confirmation required",
   confirm: function () {
     $("#poweroffform").submit();
@@ -74,10 +77,10 @@ $(".confirm-poweroff").confirm({
   post: true,
   confirmButtonClass: "btn-danger",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg" // Bootstrap classes for mid-size modal
+  dialogClass: "modal-dialog"
 });
 $(".confirm-reboot").confirm({
-  text: "Are you sure you want to send a reboot command to your Pi-Hole?",
+  text: "Are you sure you want to send a reboot command to your Pi-hole?",
   title: "Confirmation required",
   confirm: function () {
     $("#rebootform").submit();
@@ -90,7 +93,7 @@ $(".confirm-reboot").confirm({
   post: true,
   confirmButtonClass: "btn-danger",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg" // Bootstrap classes for mid-size modal
+  dialogClass: "modal-dialog"
 });
 
 $(".confirm-restartdns").confirm({
@@ -107,7 +110,7 @@ $(".confirm-restartdns").confirm({
   post: true,
   confirmButtonClass: "btn-danger",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg"
+  dialogClass: "modal-dialog"
 });
 
 $(".confirm-flushlogs").confirm({
@@ -124,7 +127,7 @@ $(".confirm-flushlogs").confirm({
   post: true,
   confirmButtonClass: "btn-danger",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg"
+  dialogClass: "modal-dialog"
 });
 
 $(".confirm-flusharp").confirm({
@@ -141,7 +144,7 @@ $(".confirm-flusharp").confirm({
   post: true,
   confirmButtonClass: "btn-warning",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg"
+  dialogClass: "modal-dialog"
 });
 
 $(".confirm-disablelogging-noflush").confirm({
@@ -158,7 +161,7 @@ $(".confirm-disablelogging-noflush").confirm({
   post: true,
   confirmButtonClass: "btn-warning",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg"
+  dialogClass: "modal-dialog"
 });
 
 $(".api-token").confirm({
@@ -176,7 +179,7 @@ $(".api-token").confirm({
   post: true,
   confirmButtonClass: "btn-danger",
   cancelButtonClass: "btn-success",
-  dialogClass: "modal-dialog modal-mg"
+  dialogClass: "modal-dialog"
 });
 
 $("#DHCPchk").click(function () {
@@ -191,11 +194,11 @@ function loadCacheInfo() {
     }
 
     // Fill table with obtained values
-    $("#cache-size").text(parseInt(data.cacheinfo["cache-size"]));
-    $("#cache-inserted").text(parseInt(data.cacheinfo["cache-inserted"]));
+    $("#cache-size").text(parseInt(data.cacheinfo["cache-size"], 10));
+    $("#cache-inserted").text(parseInt(data.cacheinfo["cache-inserted"], 10));
 
     // Highlight early cache removals when present
-    var cachelivefreed = parseInt(data.cacheinfo["cache-live-freed"]);
+    var cachelivefreed = parseInt(data.cacheinfo["cache-live-freed"], 10);
     $("#cache-live-freed").text(cachelivefreed);
     if (cachelivefreed > 0) {
       $("#cache-live-freed").parent("tr").addClass("lookatme");
@@ -209,7 +212,7 @@ function loadCacheInfo() {
 }
 
 var leasetable, staticleasetable;
-$(document).ready(function () {
+$(function () {
   if (document.getElementById("DHCPLeasesTable")) {
     leasetable = $("#DHCPLeasesTable").DataTable({
       dom: "<'row'<'col-sm-12'tr>><'row'<'col-sm-6'i><'col-sm-6'f>>",
@@ -218,7 +221,14 @@ $(document).ready(function () {
       scrollCollapse: true,
       scrollY: "200px",
       scrollX: true,
-      order: [[2, "asc"]]
+      order: [[2, "asc"]],
+      stateSave: true,
+      stateSaveCallback: function (settings, data) {
+        utils.stateSaveCallback("activeDhcpLeaseTable", data);
+      },
+      stateLoadCallback: function () {
+        return utils.stateLoadCallback("activeDhcpLeaseTable");
+      }
     });
   }
 
@@ -230,7 +240,14 @@ $(document).ready(function () {
       scrollCollapse: true,
       scrollY: "200px",
       scrollX: true,
-      order: [[2, "asc"]]
+      order: [[2, "asc"]],
+      stateSave: true,
+      stateSaveCallback: function (settings, data) {
+        utils.stateSaveCallback("staticDhcpLeaseTable", data);
+      },
+      stateLoadCallback: function () {
+        return utils.stateLoadCallback("staticDhcpLeaseTable");
+      }
     });
   }
 
@@ -253,19 +270,12 @@ $(function () {
 });
 
 // DHCP leases tooltips
-$(document).ready(function () {
+$(function () {
   $('[data-toggle="tooltip"]').tooltip({ html: true, container: "body" });
 });
 
-// Change "?tab=" parameter in URL for save and reload
-$(".nav-tabs a").on("shown.bs.tab", function (e) {
-  var tab = e.target.hash.substring(1);
-  window.history.pushState("", "", "?tab=" + tab);
-  window.scrollTo(0, 0);
-});
-
 // Auto dismissal for info notifications
-$(document).ready(function () {
+$(function () {
   var alInfo = $("#alInfo");
   if (alInfo.length > 0) {
     alInfo.delay(3000).fadeOut(2000, function () {
@@ -279,4 +289,84 @@ $(document).ready(function () {
   input.setAttribute("autocorrect", "off");
   input.setAttribute("autocapitalize", "off");
   input.setAttribute("spellcheck", false);
+
+  // En-/disable conditional forwarding input fields based
+  // on the checkbox state
+  $('input[name="rev_server"]').click(function () {
+    $('input[name="rev_server_cidr"]').prop("disabled", !this.checked);
+    $('input[name="rev_server_target"]').prop("disabled", !this.checked);
+    $('input[name="rev_server_domain"]').prop("disabled", !this.checked);
+  });
+});
+
+// Change "?tab=" parameter in URL for save and reload
+$(".nav-tabs a").on("shown.bs.tab", function (e) {
+  var tab = e.target.hash.substring(1);
+  window.history.pushState("", "", "?tab=" + tab);
+
+  window.scrollTo(0, 0);
+});
+
+// Bar/Smooth chart toggle
+$(function () {
+  var bargraphs = $("#bargraphs");
+  var chkboxData = localStorage.getItem("barchart_chkbox");
+
+  if (chkboxData !== null) {
+    // Restore checkbox state
+    bargraphs.prop("checked", chkboxData === "true");
+  } else {
+    // Initialize checkbox
+    bargraphs.prop("checked", true);
+    localStorage.setItem("barchart_chkbox", true);
+  }
+
+  bargraphs.click(function () {
+    localStorage.setItem("barchart_chkbox", bargraphs.prop("checked"));
+  });
+});
+
+// Delete dynamic DHCP lease
+$('button[id="removedynamic"]').on("click", function () {
+  var tr = $(this).closest("tr");
+  var ipaddr = utils.escapeHtml(tr.children("#IP").text());
+  var name = utils.escapeHtml(tr.children("#HOST").text());
+  var ipname = name + " (" + ipaddr + ")";
+
+  utils.disableAll();
+  utils.showAlert("info", "", "Deleting DHCP lease...", ipname);
+  $.ajax({
+    url: "api.php",
+    method: "get",
+    dataType: "json",
+    data: {
+      delete_lease: ipaddr,
+      token: token
+    },
+    success: function (response) {
+      utils.enableAll();
+      if (response.delete_lease.startsWith("OK")) {
+        utils.showAlert(
+          "success",
+          "far fa-trash-alt",
+          "Successfully deleted DHCP lease for ",
+          ipname
+        );
+        // Remove column on success
+        tr.remove();
+        // We have to hide the tooltips explicitly or they will stay there forever as
+        // the onmouseout event does not fire when the element is already gone
+        $.each($(".tooltip"), function () {
+          $(this).remove();
+        });
+      } else {
+        utils.showAlert("error", "Error while deleting DHCP lease for " + ipname, response);
+      }
+    },
+    error: function (jqXHR, exception) {
+      utils.enableAll();
+      utils.showAlert("error", "Error while deleting DHCP lease for " + ipname, jqXHR.responseText);
+      console.log(exception); // eslint-disable-line no-console
+    }
+  });
 });

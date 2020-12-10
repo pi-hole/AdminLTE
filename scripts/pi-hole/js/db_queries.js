@@ -5,7 +5,7 @@
  *  This file is copyright under the latest version of the EUPL.
  *  Please see LICENSE file for your rights under this license. */
 
-/* global moment:false */
+/* global moment:false, utils:false */
 
 var start__ = moment().subtract(6, "days");
 var from = moment(start__).utc().valueOf() / 1000;
@@ -28,8 +28,8 @@ window.location.search
   });
 
 if ("from" in GETDict && "until" in GETDict) {
-  from = parseInt(GETDict.from);
-  until = parseInt(GETDict.until);
+  from = parseInt(GETDict.from, 10);
+  until = parseInt(GETDict.until, 10);
   start__ = moment(1000 * from);
   end__ = moment(1000 * until);
   instantquery = true;
@@ -40,6 +40,7 @@ $(function () {
     {
       timePicker: true,
       timePickerIncrement: 15,
+      timePicker24Hour: true,
       locale: { format: dateformat },
       startDate: start__,
       endDate: end__,
@@ -72,74 +73,17 @@ $(function () {
 
 var tableApi, statistics;
 
-function add(domain, list) {
-  var token = $("#token").text();
-  var alInfo = $("#alInfo");
-  var alList = $("#alList");
-  var alDomain = $("#alDomain");
-  alDomain.html(domain);
-  var alSuccess = $("#alSuccess");
-  var alFailure = $("#alFailure");
-  var err = $("#err");
-
-  if (list === "white") {
-    alList.html("Whitelist");
-  } else {
-    alList.html("Blacklist");
-  }
-
-  alInfo.show();
-  alSuccess.hide();
-  alFailure.hide();
-  $.ajax({
-    url: "scripts/pi-hole/php/add.php",
-    method: "post",
-    data: { domain: domain, list: list, token: token },
-    success: function (response) {
-      if (
-        response.indexOf("not a valid argument") >= 0 ||
-        response.indexOf("is not a valid domain") >= 0
-      ) {
-        alFailure.show();
-        err.html(response);
-        alFailure.delay(4000).fadeOut(2000, function () {
-          alFailure.hide();
-        });
-      } else {
-        alSuccess.show();
-        alSuccess.delay(1000).fadeOut(2000, function () {
-          alSuccess.hide();
-        });
-      }
-
-      alInfo.delay(1000).fadeOut(2000, function () {
-        alInfo.hide();
-        alList.html("");
-        alDomain.html("");
-      });
-    },
-    error: function () {
-      alFailure.show();
-      err.html("");
-      alFailure.delay(1000).fadeOut(2000, function () {
-        alFailure.hide();
-      });
-      alInfo.delay(1000).fadeOut(2000, function () {
-        alInfo.hide();
-        alList.html("");
-        alDomain.html("");
-      });
-    }
-  });
-}
-
 function handleAjaxError(xhr, textStatus) {
   if (textStatus === "timeout") {
     alert("The server took too long to send the data.");
-  } else if (xhr.responseText.indexOf("Connection refused") >= 0) {
+  } else if (xhr.responseText.indexOf("Connection refused") !== -1) {
     alert("An error occurred while loading the data: Connection refused. Is FTL running?");
   } else {
-    alert("An unknown error occurred while loading the data.\n" + xhr.responseText);
+    alert(
+      "An unknown error occurred while loading the data.\n" +
+        xhr.responseText +
+        "\nCheck the server's log files (/var/log/lighttpd/error.log when you're using the default Pi-hole web server) for details. You may need to increase the memory available for Pi-hole in case you requested a lot of data."
+    );
   }
 
   $("#all-queries_processing").hide();
@@ -187,6 +131,12 @@ function getQueryTypes() {
     queryType.push(11);
   }
 
+  if ($("#type_retried").prop("checked")) {
+    // Multiple IDs correspond to this status
+    // We request queries with all of them
+    queryType.push([12, 13]);
+  }
+
   return queryType.join(",");
 }
 
@@ -195,13 +145,13 @@ var reloadCallback = function () {
   statistics = [0, 0, 0, 0];
   var data = tableApi.rows().data();
   for (var i = 0; i < data.length; i++) {
-    statistics[0]++;
-    if (data[i][4] === 1) {
-      statistics[2]++;
+    statistics[0]++; // TOTAL query
+    if (data[i][4] === 1 || (data[i][4] > 4 && data[i][4] !== 10)) {
+      statistics[2]++; // EXACT blocked
     } else if (data[i][4] === 3) {
-      statistics[1]++;
-    } else if (data[i][4] === 4) {
-      statistics[3]++;
+      statistics[1]++; // CACHE query
+    } else if (data[i][4] === 4 || data[i][4] === 10) {
+      statistics[3]++; // REGEX blocked
     }
   }
 
@@ -209,9 +159,9 @@ var reloadCallback = function () {
   $("h3#ads_blocked_exact").text(statistics[2].toLocaleString());
   $("h3#ads_wildcard_blocked").text(statistics[3].toLocaleString());
 
-  var percent = 0.0;
+  var percent = 0;
   if (statistics[2] + statistics[3] > 0) {
-    percent = (100.0 * (statistics[2] + statistics[3])) / statistics[0];
+    percent = (100 * (statistics[2] + statistics[3])) / statistics[0];
   }
 
   $("h3#ads_percentage_today").text(parseFloat(percent).toFixed(1).toLocaleString() + " %");
@@ -230,14 +180,10 @@ function refreshTableData() {
   tableApi.ajax.url(APIstring).load(reloadCallback);
 }
 
-$(document).ready(function () {
-  var APIstring;
-
-  if (instantquery) {
-    APIstring = "api_db.php?getAllQueries&from=" + from + "&until=" + until;
-  } else {
-    APIstring = "api_db.php?getAllQueries=empty";
-  }
+$(function () {
+  var APIstring = instantquery
+    ? "api_db.php?getAllQueries&from=" + from + "&until=" + until
+    : "api_db.php?getAllQueries=empty";
 
   // Check if query type filtering is enabled
   var queryType = getQueryTypes();
@@ -258,7 +204,10 @@ $(document).ready(function () {
           break;
         case 2:
           color = "green";
-          fieldtext = "OK <br class='hidden-lg'>(forwarded)";
+          fieldtext =
+            "OK <br class='hidden-lg'>(forwarded to " +
+            (data.length > 5 && data[5] !== "N/A" ? data[5] : "") +
+            ")";
           buttontext =
             '<button type="button" class="btn btn-default btn-sm text-red"><i class="fa fa-ban"></i> Blacklist</button>';
           break;
@@ -313,6 +262,16 @@ $(document).ready(function () {
           buttontext =
             '<button type="button" class="btn btn-default btn-sm text-green"><i class="fas fa-check"></i> Whitelist</button>';
           break;
+        case 12:
+          color = "green";
+          fieldtext = "Retried";
+          buttontext = "";
+          break;
+        case 13:
+          color = "green";
+          fieldtext = "Retried <br class='hidden-lg'>(ignored)";
+          buttontext = "";
+          break;
         default:
           color = "black";
           fieldtext = "Unknown";
@@ -366,7 +325,7 @@ $(document).ready(function () {
       },
       { width: "10%" },
       { width: "40%" },
-      { width: "20%" },
+      { width: "20%", type: "ip-address" },
       { width: "10%" },
       { width: "5%" }
     ],
@@ -385,10 +344,10 @@ $(document).ready(function () {
   });
   $("#all-queries tbody").on("click", "button", function () {
     var data = tableApi.row($(this).parents("tr")).data();
-    if (data[4] === 1 || data[4] === 4 || data[5] === 5) {
-      add(data[2], "white");
+    if ([1, 4, 5, 9, 10, 11].indexOf(data[4]) !== -1) {
+      utils.addFromQueryLog(data[2], "white");
     } else {
-      add(data[2], "black");
+      utils.addFromQueryLog(data[2], "black");
     }
   });
 

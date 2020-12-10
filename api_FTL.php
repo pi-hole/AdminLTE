@@ -288,6 +288,11 @@ else
 			// Get specific domain only
 			sendRequestFTL("getallqueries-domain ".$_GET['domain']);
 		}
+		else if(isset($_GET['client']) && (isset($_GET['type']) && $_GET['type'] === "blocked"))
+		{
+			// Get specific client only
+			sendRequestFTL("getallqueries-client-blocked ".$_GET['client']);
+		}
 		else if(isset($_GET['client']))
 		{
 			// Get specific client only
@@ -328,7 +333,7 @@ else
 		$data = array_merge($data, $result);
 	}
 
-	if(isset($_GET["recentBlocked"]))
+	if(isset($_GET["recentBlocked"]) && $auth)
 	{
 		sendRequestFTL("recentBlocked");
 		die(utf8_encode(getResponseFTL()[0]));
@@ -409,6 +414,13 @@ else
 		}
 		$result = array('over_time' => $over_time);
 		$data = array_merge($data, $result);
+	}
+
+	if (isset($_GET['delete_lease']) && $auth)
+	{
+		sendRequestFTL("delete-lease ".$_GET['delete_lease']);
+		$return = getResponseFTL();
+		$data["delete_lease"] = $return[0];
 	}
 
 	disconnectFTL();

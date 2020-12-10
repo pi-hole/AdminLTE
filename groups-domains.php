@@ -40,7 +40,7 @@
                         <li role="presentation">
                             <a href="#tab_regex" aria-controls="tab_regex" aria-expanded="false" role="tab" data-toggle="tab">RegEx filter</a>
                         </li>
-                    </ul>        
+                    </ul>
                     <div class="tab-content">
                         <!-- Domain tab -->
                         <div id="tab_domain" class="tab-pane active fade in">
@@ -48,22 +48,21 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label for="new_domain">Domain:</label>
-                                        <div class="input-group">
                                             <input id="new_domain" type="url" class="form-control active" placeholder="Domain to be added" autocomplete="off" spellcheck="false" autocapitalize="none" autocorrect="off">
-                                            <span class="input-group-addon">
-                                                <input type="checkbox" id="wildcard_checkbox">
-                                                <label for="wildcard_checkbox">wildcard</label></span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <strong><i class="fa fa-question-circle"></i> Checkbox "wildcard":</span></strong> Check this box if you want to involve
-                                        all subdomains. The entered domain will be converted to a RegEx filter while adding.
                                     </div>
                                 </div>
                                 <div class="col-md-6 form-group">
                                     <label for="new_domain_comment">Comment:</label>
                                     <input id="new_domain_comment" type="text" class="form-control" placeholder="Description (optional)">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div>
+                                        <input type="checkbox" id="wildcard_checkbox">
+                                        <label for="wildcard_checkbox"><strong>Add domain as wildcard</strong></label>
+                                        <p>Check this box if you want to involve all subdomains. The entered domain will be converted to a RegEx filter while adding.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -118,7 +117,7 @@
             </div>
             <!-- /.box-header -->
             <div class="box-body">
-                <table id="domainsTable" class="display table table-striped table-bordered" cellspacing="0" width="100%">
+                <table id="domainsTable" class="table table-striped table-bordered" width="100%">
                     <thead>
                     <tr>
                         <th>ID</th>
@@ -131,7 +130,7 @@
                     </tr>
                     </thead>
                 </table>
-                <button type="button" id="resetButton" hidden="true" class="btn btn-default btn-sm text-red">Reset sorting</button>
+                <button type="button" id="resetButton" class="btn btn-default btn-sm text-red hidden">Reset sorting</button>
             </div>
             <!-- /.box-body -->
         </div>
@@ -139,8 +138,10 @@
     </div>
 </div>
 
-<script src="scripts/pi-hole/js/groups-common.js"></script>
-<script src="scripts/pi-hole/js/groups-domains.js"></script>
+<script src="scripts/vendor/bootstrap-select.min.js?v=<?=$cacheVer?>"></script>
+<script src="scripts/vendor/bootstrap-toggle.min.js?v=<?=$cacheVer?>"></script>
+<script src="scripts/pi-hole/js/utils.js?v=<?=$cacheVer?>"></script>
+<script src="scripts/pi-hole/js/groups-domains.js?v=<?=$cacheVer?>"></script>
 
 <?php
 require "scripts/pi-hole/php/footer.php";

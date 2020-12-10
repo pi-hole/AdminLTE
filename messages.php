@@ -19,7 +19,7 @@
         <div class="box" id="messages-list">
             <!-- /.box-header -->
             <div class="box-body">
-                <table id="messagesTable" class="display table table-striped table-bordered" cellspacing="0" width="100%">
+                <table id="messagesTable" class="table table-striped table-bordered" width="100%">
                     <thead>
                     <tr>
                         <th>ID</th>
@@ -41,9 +41,9 @@
     </div>
 </div>
 
-<script src="scripts/pi-hole/js/groups-common.js"></script>
-<script src="scripts/pi-hole/js/messages.js"></script>
+<script src="scripts/pi-hole/js/utils.js?v=<?=$cacheVer?>"></script>
+<script src="scripts/pi-hole/js/messages.js?v=<?=$cacheVer?>"></script>
 
 <?php
-require "scripts/pi-hole/php/footer.php";
+    require "scripts/pi-hole/php/footer.php";
 ?>

@@ -11,8 +11,12 @@
     require_once "scripts/pi-hole/php/FTL.php";
     require "scripts/pi-hole/php/theme.php";
     $scriptname = basename($_SERVER['SCRIPT_FILENAME']);
+    $hostname = gethostname() ? gethostname() : "";
 
     check_cors();
+    
+    // Create cache busting version
+    $cacheVer = filemtime(__FILE__);
 
     // Generate CSRF token
     if(empty($_SESSION['token'])) {
@@ -39,7 +43,7 @@
     {
         // $output could be either 4-5 digits or 2-3, and we only divide by 1000 if it's 4-5
         // ex. 39007 vs 39
-        $celsius = intVal($output);
+        $celsius = intval($output);
 
         // If celsius is greater than 1 degree and is in the 4-5 digit format
         if($celsius > 1000) {
@@ -47,22 +51,6 @@
             $celsius *= 1e-3;
         }
 
-        $kelvin = $celsius + 273.15;
-        $fahrenheit = ($celsius*9./5)+32.0;
-
-        if(isset($setupVars['TEMPERATUREUNIT']))
-        {
-            $temperatureunit = $setupVars['TEMPERATUREUNIT'];
-        }
-        else
-        {
-            $temperatureunit = "C";
-        }
-        // Override temperature unit setting if it is changed via Settings page
-        if(isset($_POST["tempunit"]))
-        {
-            $temperatureunit = $_POST["tempunit"];
-        }
         // Get user-defined temperature limit if set
         if(isset($setupVars['TEMPERATURE_LIMIT']))
         {
@@ -105,7 +93,7 @@
             if(count($expl) == 2)
             {
                 // remove " kB" from the end of the string and make it an integer
-                $meminfo[$expl[0]] = intVal(substr($expl[1],0, -3));
+                $meminfo[$expl[0]] = intval(substr($expl[1],0, -3));
             }
         }
         $memory_used = $meminfo["MemTotal"]-$meminfo["MemFree"]-$meminfo["Buffers"]-$meminfo["Cached"];
@@ -166,24 +154,24 @@
 
     $piholeFTLConf = piholeFTLConfig();
 ?>
+<!doctype html>
 <!-- Pi-hole: A black hole for Internet advertisements
 *  (c) 2017 Pi-hole, LLC (https://pi-hole.net)
 *  Network-wide ad blocking via your own hardware.
 *
 *  This file is copyright under the latest version of the EUPL.
 *  Please see LICENSE file for your rights under this license. -->
-<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://api.github.com; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; child-src 'self'; form-action 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self'; manifest-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
     <!-- Usually browsers proactively perform domain name resolution on links that the user may choose to follow. We disable DNS prefetching here -->
     <meta http-equiv="x-dns-prefetch-control" content="off">
     <meta http-equiv="cache-control" content="max-age=60,private">
     <!-- Tell the browser to be responsive to screen width -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pi-hole<?php if (gethostname()) {echo " - ", gethostname();} ?></title>
+    <title>Pi-hole<?php echo $hostname ? " - " . $hostname : "" ?></title>
 
     <link rel="apple-touch-icon" href="img/favicons/apple-touch-icon.png" sizes="180x180">
     <link rel="icon" href="img/favicons/favicon-32x32.png" sizes="32x32" type="image/png">
@@ -200,39 +188,31 @@
         html { background-color: #000; }
     </style>
 <?php } ?>
-    <link rel="stylesheet" href="style/vendor/SourceSansPro/SourceSansPro.css">
-    <link rel="stylesheet" href="style/vendor/bootstrap/css/bootstrap.min.css">
-    <link rel="stylesheet" href="style/vendor/font-awesome-5.13.0/css/all.min.css">
-    <link rel="stylesheet" href="style/vendor/dataTables.bootstrap.min.css">
-    <link rel="stylesheet" href="style/vendor/daterangepicker.css">
-    <link rel="stylesheet" href="style/vendor/AdminLTE.min.css">
-    <link rel="stylesheet" href="style/vendor/animate.min.css">
+    <link rel="stylesheet" href="style/vendor/SourceSansPro/SourceSansPro.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/bootstrap/css/bootstrap.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/font-awesome/css/all.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/datatables.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/daterangepicker.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/AdminLTE.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/select2.min.css?v=<?=$cacheVer?>">
 
-<?php if(in_array($scriptname, array("groups.php", "groups-clients.php", "groups-domains.php", "groups-adlists.php"))){ ?>
-    <link rel="stylesheet" href="style/vendor/bootstrap/css/bootstrap-select.min.css">
-    <link rel="stylesheet" href="style/vendor/bootstrap/css/bootstrap-toggle.min.css">
+<?php if (in_array($scriptname, array("groups.php", "groups-adlists.php", "groups-clients.php", "groups-domains.php"))){ ?>
+    <link rel="stylesheet" href="style/vendor/animate.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/bootstrap-select.min.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/vendor/bootstrap-toggle.min.css?v=<?=$cacheVer?>">
 <?php } ?>
-    <link rel="stylesheet" href="style/vendor/iCheck/<?php echo $checkbox_theme_name;?>/<?php echo $checkbox_theme_variant;?>.css">
-    <link rel="stylesheet" href="style/pi-hole.css">
-    <link rel="stylesheet" href="style/themes/<?php echo $theme; ?>.css">
-    <noscript><link rel="stylesheet" href="style/vendor/js-warn.css"></noscript>
+    <link rel="stylesheet" href="style/pi-hole.css?v=<?=$cacheVer?>">
+    <link rel="stylesheet" href="style/themes/<?php echo $theme; ?>.css?v=<?=$cacheVer?>">
+    <noscript><link rel="stylesheet" href="style/vendor/js-warn.css?v=<?=$cacheVer?>"></noscript>
 
-    <script src="scripts/vendor/jquery.min.js"></script>
-    <script src="scripts/vendor/jquery-ui.min.js"></script>
-    <script src="style/vendor/bootstrap/js/bootstrap.min.js"></script>
-    <script src="scripts/vendor/adminlte.min.js"></script>
-    <script src="scripts/vendor/bootstrap-notify.min.js"></script>
-
-<?php if(in_array($scriptname, array("groups.php", "groups-clients.php", "groups-domains.php", "groups-adlists.php"))){ ?>
-    <script src="style/vendor/bootstrap/js/bootstrap-select.min.js"></script>
-    <script src="style/vendor/bootstrap/js/bootstrap-toggle.min.js"></script>
-<?php } ?>
-
-    <script src="scripts/vendor/jquery.dataTables.min.js"></script>
-    <script src="scripts/vendor/dataTables.bootstrap.min.js"></script>
-    <script src="scripts/vendor/moment.min.js"></script>
-    <script src="scripts/vendor/Chart.min.js"></script>
-    <script src="scripts/vendor/iCheck.min.js"></script>
+    <script src="scripts/vendor/jquery.min.js?v=<?=$cacheVer?>"></script>
+    <script src="style/vendor/bootstrap/js/bootstrap.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/adminlte.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/bootstrap-notify.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/select2.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/datatables.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/moment.min.js?v=<?=$cacheVer?>"></script>
+    <script src="scripts/vendor/Chart.min.js?v=<?=$cacheVer?>"></script>
 </head>
 <body class="hold-transition sidebar-mini <?php if($boxedlayout){ ?>layout-boxed<?php } ?>">
 <noscript>
@@ -252,7 +232,6 @@ if($auth) {
 ?>
 
 <!-- Send token to JS -->
-<div id="checkbox_theme" hidden><?php echo $checkbox_theme_name; ?><?php if($checkbox_theme_name !== $checkbox_theme_variant){ echo "-$checkbox_theme_variant"; } ?></div>
 <div id="enableTimer" hidden><?php if(file_exists("../custom_disable_timer")){ echo file_get_contents("../custom_disable_timer"); } ?></div>
 <div class="wrapper">
     <header class="main-header">
@@ -266,21 +245,21 @@ if($auth) {
         <!-- Header Navbar: style can be found in header.less -->
         <nav class="navbar navbar-static-top">
             <!-- Sidebar toggle button-->
-            <a href="#" class="sidebar-toggle" data-toggle="push-menu" role="button">
+            <a href="#" class="sidebar-toggle fa5" data-toggle="push-menu" role="button">
                 <span class="sr-only">Toggle navigation</span>
             </a>
             <div class="navbar-custom-menu">
                 <ul class="nav navbar-nav">
-                    <li id="pihole-diagnosis" class="d-none">
+                    <li id="pihole-diagnosis" class="hidden">
                         <a href="messages.php">
                             <i class="fa fa-exclamation-triangle"></i>
                             <span class="label label-warning" id="pihole-diagnosis-count"></span>
                         </a>
                     </li>
-                    <li>
+                    <li<?php echo !$hostname ? ' class="hidden"' : "" ?>>
                         <p class="navbar-text">
                             <span class="hidden-xs hidden-sm">hostname:</span>
-                            <code><?php echo gethostname(); ?></code>
+                            <code><?php echo $hostname; ?></code>
                         </p>
                     </li>
                     <li class="dropdown user user-menu">
@@ -342,26 +321,26 @@ if($auth) {
                     <p>Status</p>
                         <?php
                         $pistatus = pihole_execute('status web');
-                        if(isset($pistatus[0])) {
+                        if (isset($pistatus[0])) {
                             $pistatus = $pistatus[0];
                         } else {
                             $pistatus = null;
                         }
                         if ($pistatus === "1") {
-                            echo '<a id="status"><i class="fa fa-circle text-green-light"></i> Active</a>';
+                            echo '<span id="status"><i class="fa fa-circle text-green-light"></i> Active</span>';
                         } elseif ($pistatus === "0") {
-                            echo '<a id="status"><i class="fa fa-circle text-red"></i> Offline</a>';
+                            echo '<span id="status"><i class="fa fa-circle text-red"></i> Offline</span>';
                         } elseif ($pistatus === "-1") {
-                            echo '<a id="status"><i class="fa fa-circle text-red"></i> DNS service not running</a>';
+                            echo '<span id="status"><i class="fa fa-circle text-red"></i> DNS service not running</span>';
                         } else {
-                            echo '<a id="status"><i class="fa fa-circle text-orange"></i> Unknown</a>';
+                            echo '<span id="status"><i class="fa fa-circle text-orange"></i> Unknown</span>';
                         }
 
                         // CPU Temp
                         if($FTL)
                         {
                             if ($celsius >= -273.15) {
-                                echo "<a id=\"temperature\"><i class=\"fa fa-fire ";
+                                echo "<span id=\"temperature\"><i class=\"fa fa-fire ";
                                 if ($celsius > $temperaturelimit) {
                                     echo "text-red";
                                 }
@@ -369,30 +348,17 @@ if($auth) {
                                 {
                                     echo "text-vivid-blue";
                                 }
-                                echo "\"></i> Temp:&nbsp;";
-                                if($temperatureunit === "F")
-                                {
-                                    echo round($fahrenheit,1) . "&nbsp;&deg;F";
-                                }
-                                elseif($temperatureunit === "K")
-                                {
-                                    echo round($kelvin,1) . "&nbsp;K";
-                                }
-                                else
-                                {
-                                    echo round($celsius,1) . "&nbsp;&deg;C";
-                                }
-                                echo "</a>";
+                                ?>"></i> Temp:&nbsp;<span id="rawtemp" hidden><?php echo $celsius;?></span><span id="tempdisplay"></span></span><?php
                             }
                         }
                         else
                         {
-                            echo '<a id=\"temperature\"><i class="fa fa-circle text-red"></i> FTL offline</a>';
+                            echo '<span id=\"temperature\"><i class="fa fa-circle text-red"></i> FTL offline</span>';
                         }
                     ?>
                     <br/>
                     <?php
-                    echo "<a title=\"Detected $nproc cores\"><i class=\"fa fa-circle ";
+                    echo "<span title=\"Detected $nproc cores\"><i class=\"fa fa-circle ";
                         if ($loaddata[0] > $nproc) {
                             echo "text-red";
                         }
@@ -400,11 +366,11 @@ if($auth) {
                         {
                             echo "text-green-light";
                         }
-                        echo "\"></i> Load:&nbsp;&nbsp;" . $loaddata[0] . "&nbsp;&nbsp;" . $loaddata[1] . "&nbsp;&nbsp;". $loaddata[2] . "</a>";
+                        echo "\"></i> Load:&nbsp;&nbsp;" . $loaddata[0] . "&nbsp;&nbsp;" . $loaddata[1] . "&nbsp;&nbsp;". $loaddata[2] . "</span>";
                     ?>
                     <br/>
                     <?php
-                    echo "<a><i class=\"fa fa-circle ";
+                    echo "<span><i class=\"fa fa-circle ";
                         if ($memory_usage > 0.75 || $memory_usage < 0.0) {
                             echo "text-red";
                         }
@@ -414,11 +380,11 @@ if($auth) {
                         }
                         if($memory_usage > 0.0)
                         {
-                            echo "\"></i> Memory usage:&nbsp;&nbsp;" . sprintf("%.1f",100.0*$memory_usage) . "&thinsp;%</a>";
+                            echo "\"></i> Memory usage:&nbsp;&nbsp;" . sprintf("%.1f",100.0*$memory_usage) . "&thinsp;%</span>";
                         }
                         else
                         {
-                            echo "\"></i> Memory usage:&nbsp;&nbsp; N/A</a>";
+                            echo "\"></i> Memory usage:&nbsp;&nbsp; N/A</span>";
                         }
                     ?>
                 </div>
@@ -458,7 +424,7 @@ if($auth) {
                 </li>
                 <li class="treeview<?php if($scriptname === "db_queries.php" || $scriptname === "db_lists.php" || $scriptname === "db_graph.php"){ ?> active<?php } ?>">
                   <a href="#">
-                    <i class="fa fa-clock"></i> <span>Long term data</span>
+                    <i class="fa fa-clock"></i> <span>Long-term data</span>
                     <span class="pull-right-container">
                       <i class="fa fa-angle-left pull-right"></i>
                     </span>
@@ -493,14 +459,8 @@ if($auth) {
                         <i class="fa fa-ban"></i> <span>Blacklist</span>
                     </a>
                 </li>
-                <!-- Local DNS Records -->
-                <li<?php if($scriptname === "dns_records.php"){ ?> class="active"<?php } ?>>
-                    <a href="dns_records.php">
-                        <i class="fa fa-address-book"></i> <span>Local DNS Records</span>
-                    </a>
-                </li>
                 <!-- Group Management -->
-                <li class="treeview<?php if(in_array($scriptname, array("groups.php", "groups-clients.php", "groups-domains.php", "groups-adlists.php"))){ ?> active<?php } ?>">
+                <li class="treeview<?php if (in_array($scriptname, array("groups.php", "groups-adlists.php", "groups-clients.php", "groups-domains.php"))){ ?> active<?php } ?>">
                   <a href="#">
                     <i class="fa fa-users-cog"></i> <span>Group Management</span>
                     <span class="pull-right-container">
@@ -531,7 +491,7 @@ if($auth) {
                   </ul>
                 </li>
                 <!-- Toggle -->
-                <li id="pihole-disable" class="treeview"<?php if ($pistatus == "0") { ?> hidden="true"<?php } ?>>
+                <li id="pihole-disable" class="treeview"<?php if ($pistatus == "0") { ?> hidden<?php } ?>>
                   <a href="#">
                     <span class="pull-right-container">
                       <i class="fa fa-angle-left pull-right"></i>
@@ -540,8 +500,8 @@ if($auth) {
                   </a>
                   <ul class="treeview-menu">
                     <li>
-                        <a href="#" id="pihole-disable-permanently">
-                            <i class="fa fa-stop"></i> Permanently
+                        <a href="#" id="pihole-disable-indefinitely">
+                            <i class="fa fa-stop"></i> Indefinitely
                         </a>
                     </li>
                     <li>
@@ -567,7 +527,7 @@ if($auth) {
                   </ul>
                     <!-- <a href="#" id="flip-status"><i class="fa fa-stop"></i> <span>Disable</span></a> -->
                 </li>
-                <li id="pihole-enable" class="treeview"<?php if ($pistatus == "1") { ?> hidden="true"<?php } ?>>
+                <li id="pihole-enable" class="treeview"<?php if ($pistatus == "1") { ?> hidden<?php } ?>>
                     <a href="#">
                       <i class="fa fa-play"></i>
                       <span id="enableLabel">Enable&nbsp;&nbsp;&nbsp;
@@ -576,7 +536,7 @@ if($auth) {
                     </a>
                 </li>
                 <!-- Tools -->
-                <li class="treeview<?php if(in_array($scriptname, array("messages.php", "gravity.php", "queryads.php", "auditlog.php", "taillog.php", "taillog-FTL.php", "debug.php", "network.php"))){ ?> active<?php } ?>">
+                <li class="treeview<?php if (in_array($scriptname, array("messages.php", "gravity.php", "queryads.php", "auditlog.php", "taillog.php", "taillog-FTL.php", "debug.php", "network.php"))){ ?> active<?php } ?>">
                   <a href="#">
                     <i class="fa fa-folder"></i> <span>Tools</span>
                     <span class="pull-right-container">
@@ -640,6 +600,27 @@ if($auth) {
                         <i class="fa fa-cogs"></i> <span>Settings</span>
                     </a>
                 </li>
+                <!-- Local DNS Records -->
+                <li class="treeview <?php if(in_array($scriptname, array("dns_records.php", "cname_records.php"))){ ?>active<?php } ?>">
+                  <a href="#">
+                    <i class="fa fa-address-book"></i> <span>Local DNS</span>                    
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-left pull-right"></i>
+                    </span>               
+                  </a>
+                  <ul class="treeview-menu">
+                    <li<?php if($scriptname === "dns_records.php"){ ?> class="active"<?php } ?>>
+                        <a href="dns_records.php">
+                            <i class="fa fa-address-book"></i> <span>DNS Records</span>
+                        </a>
+                    </li>
+                    <li<?php if($scriptname === "cname_records.php"){ ?> class="active"<?php } ?>>
+                        <a href="cname_records.php">
+                            <i class="fa fa-address-book"></i> <span>CNAME Records</span>
+                        </a>
+                    </li>
+                  </ul>
+                </li>
                 <!-- Logout -->
                 <?php
                 // Show Logout button if $auth is set and authorization is required
@@ -657,24 +638,22 @@ if($auth) {
                 if(strlen($pwhash) > 0 && !$auth) { ?>
                 <li<?php if($scriptname === "login"){ ?> class="active"<?php } ?>>
                     <a href="index.php?login">
-                        <i class="fa far fa-user"></i> <span>Login</span>
+                        <i class="fa fa-user"></i> <span>Login</span>
                     </a>
                 </li>
                 <?php } ?>
                 <!-- Donate -->
                 <li>
                     <a href="https://pi-hole.net/donate/" rel="noopener" target="_blank">
-                        <i class="fa-paypal-icon fab fa-paypal"></i> <span>Donate</span>
+                        <i class="fab fa-paypal"></i> <span>Donate</span>
                     </a>
                 </li>
-                <?php if($auth){ ?>
-                <!-- Help -->
-                <li<?php if($scriptname === "help.php"){ ?> class="active"<?php } ?>>
-                    <a href="help.php">
-                        <i class="fa fa-question-circle"></i> <span>Help</span>
+                 <!-- Docs -->
+                 <li>
+                    <a href="https://docs.pi-hole.net/" rel="noopener" target="_blank">
+                        <i class="fa fa-question-circle"></i> <span>Documentation</span>
                     </a>
                 </li>
-                <?php } ?>
             </ul>
         </section>
         <!-- /.sidebar -->

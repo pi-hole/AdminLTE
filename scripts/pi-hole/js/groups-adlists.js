@@ -11,7 +11,7 @@ var table;
 var groups = [];
 var token = $("#token").text();
 
-function get_groups() {
+function getGroups() {
   $.post(
     "scripts/pi-hole/php/groups.php",
     { action: "get_groups", token: token },
@@ -23,11 +23,11 @@ function get_groups() {
   );
 }
 
-$(document).ready(function () {
+$(function () {
   $("#btnAdd").on("click", addAdlist);
 
-  utils.bsSelect_defaults();
-  get_groups();
+  utils.setBsSelectDefaults();
+  getGroups();
 });
 
 function initTable() {
@@ -55,9 +55,11 @@ function initTable() {
       $(row).attr("data-id", data.id);
       var tooltip =
         "Added: " +
-        utils.datetime(data.date_added) +
-        "\nLast modified: " +
-        utils.datetime(data.date_modified) +
+        utils.datetime(data.date_added, false) +
+        "\nLast modified (database entry): " +
+        utils.datetime(data.date_modified, false) +
+        "\nLast updated (list content): " +
+        (data.date_updated !== null ? utils.datetime(data.date_updated, false) : "N/A") +
         "\nDatabase ID: " +
         data.id;
       $("td:eq(0)", row).html(
@@ -86,7 +88,7 @@ function initTable() {
 
       $("td:eq(2)", row).html('<input id="comment_' + data.id + '" class="form-control">');
       var commentEl = $("#comment_" + data.id, row);
-      commentEl.val(data.comment);
+      commentEl.val(utils.unescapeHtml(data.comment));
       commentEl.on("change", editAdlist);
 
       $("td:eq(3)", row).empty();
@@ -96,13 +98,13 @@ function initTable() {
       var selectEl = $("#multiselect_" + data.id, row);
       // Add all known groups
       for (var i = 0; i < groups.length; i++) {
-        var data_sub = "";
+        var dataSub = "";
         if (!groups[i].enabled) {
-          data_sub = 'data-subtext="(disabled)"';
+          dataSub = 'data-subtext="(disabled)"';
         }
 
         selectEl.append(
-          $("<option " + data_sub + "/>")
+          $("<option " + dataSub + "/>")
             .val(groups[i].id)
             .text(groups[i].name)
         );
@@ -172,22 +174,16 @@ function initTable() {
     ],
     stateSave: true,
     stateSaveCallback: function (settings, data) {
-      // Store current state in client's local storage area
-      localStorage.setItem("groups-adlists-table", JSON.stringify(data));
+      utils.stateSaveCallback("groups-adlists-table", data);
     },
     stateLoadCallback: function () {
-      // Receive previous state from client's local storage area
-      var data = localStorage.getItem("groups-adlists-table");
+      var data = utils.stateLoadCallback("groups-adlists-table");
+
       // Return if not available
       if (data === null) {
         return null;
       }
 
-      data = JSON.parse(data);
-      // Always start on the first page to show most recent queries
-      data.start = 0;
-      // Always start with empty search field
-      data.search.search = "";
       // Reset visibility of ID column
       data.columns[0].visible = false;
       // Apply loaded state to table
@@ -198,14 +194,14 @@ function initTable() {
   table.on("order.dt", function () {
     var order = table.order();
     if (order[0][0] !== 0 || order[0][1] !== "asc") {
-      $("#resetButton").show();
+      $("#resetButton").removeClass("hidden");
     } else {
-      $("#resetButton").hide();
+      $("#resetButton").addClass("hidden");
     }
   });
   $("#resetButton").on("click", function () {
     table.order([[0, "asc"]]).draw();
-    $("#resetButton").hide();
+    $("#resetButton").addClass("hidden");
   });
 
   // Disable autocorrect in the search box
@@ -219,13 +215,15 @@ function initTable() {
 }
 
 function addAdlist() {
-  var address = $("#new_address").val();
-  var comment = $("#new_comment").val();
+  var address = utils.escapeHtml($("#new_address").val());
+  var comment = utils.escapeHtml($("#new_comment").val());
 
   utils.disableAll();
   utils.showAlert("info", "", "Adding adlist...", address);
 
   if (address.length === 0) {
+    // enable the ui elements again
+    utils.enableAll();
     utils.showAlert("warning", "", "Warning", "Please specify an adlist address");
     return;
   }
@@ -243,12 +241,7 @@ function addAdlist() {
     success: function (response) {
       utils.enableAll();
       if (response.success) {
-        utils.showAlert(
-          "success",
-          "glyphicon glyphicon-plus",
-          "Successfully added adlist",
-          address
-        );
+        utils.showAlert("success", "fas fa-plus", "Successfully added adlist", address);
         table.ajax.reload(null, false);
         $("#new_address").val("");
         $("#new_comment").val("");
@@ -260,7 +253,7 @@ function addAdlist() {
     error: function (jqXHR, exception) {
       utils.enableAll();
       utils.showAlert("error", "", "Error while adding new adlist: ", jqXHR.responseText);
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }
@@ -270,30 +263,30 @@ function editAdlist() {
   var tr = $(this).closest("tr");
   var id = tr.attr("data-id");
   var status = tr.find("#status_" + id).is(":checked") ? 1 : 0;
-  var comment = tr.find("#comment_" + id).val();
+  var comment = utils.escapeHtml(tr.find("#comment_" + id).val());
   var groups = tr.find("#multiselect_" + id).val();
-  var address = tr.find("#address_" + id).text();
+  var address = utils.escapeHtml(tr.find("#address_" + id).text());
 
   var done = "edited";
-  var not_done = "editing";
+  var notDone = "editing";
   switch (elem) {
     case "status_" + id:
       if (status === 0) {
         done = "disabled";
-        not_done = "disabling";
+        notDone = "disabling";
       } else if (status === 1) {
         done = "enabled";
-        not_done = "enabling";
+        notDone = "enabling";
       }
 
       break;
     case "comment_" + id:
       done = "edited comment of";
-      not_done = "editing comment of";
+      notDone = "editing comment of";
       break;
     case "multiselect_" + id:
       done = "edited groups of";
-      not_done = "editing groups of";
+      notDone = "editing groups of";
       break;
     default:
       alert("bad element or invalid data-id!");
@@ -329,7 +322,7 @@ function editAdlist() {
         utils.showAlert(
           "error",
           "",
-          "Error while " + not_done + " adlist with ID " + id,
+          "Error while " + notDone + " adlist with ID " + id,
           Number(response.message)
         );
       }
@@ -339,10 +332,10 @@ function editAdlist() {
       utils.showAlert(
         "error",
         "",
-        "Error while " + not_done + " adlist with ID " + id,
+        "Error while " + notDone + " adlist with ID " + id,
         jqXHR.responseText
       );
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }
@@ -350,7 +343,7 @@ function editAdlist() {
 function deleteAdlist() {
   var tr = $(this).closest("tr");
   var id = tr.attr("data-id");
-  var address = tr.find("#address_" + id).text();
+  var address = utils.escapeHtml(tr.find("#address_" + id).text());
 
   utils.disableAll();
   utils.showAlert("info", "", "Deleting adlist...", address);
@@ -362,12 +355,7 @@ function deleteAdlist() {
     success: function (response) {
       utils.enableAll();
       if (response.success) {
-        utils.showAlert(
-          "success",
-          "glyphicon glyphicon-trash",
-          "Successfully deleted adlist ",
-          address
-        );
+        utils.showAlert("success", "far fa-trash-alt", "Successfully deleted adlist ", address);
         table.row(tr).remove().draw(false).ajax.reload(null, false);
       } else {
         utils.showAlert("error", "", "Error while deleting adlist with ID " + id, response.message);
@@ -376,7 +364,7 @@ function deleteAdlist() {
     error: function (jqXHR, exception) {
       utils.enableAll();
       utils.showAlert("error", "", "Error while deleting adlist with ID " + id, jqXHR.responseText);
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }

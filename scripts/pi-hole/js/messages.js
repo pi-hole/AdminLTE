@@ -9,7 +9,7 @@
 
 var token = $("#token").text();
 
-function render_timestamp(data, type) {
+function renderTimestamp(data, type) {
   // Display and search content
   if (type === "display" || type === "filter") {
     return utils.datetime(data);
@@ -23,7 +23,7 @@ function multline(input) {
   return input.split(",").join("\n");
 }
 
-function render_message(data, type, row) {
+function renderMessage(data, type, row) {
   // Display and search content
   switch (row.type) {
     case "REGEX":
@@ -57,12 +57,31 @@ function render_message(data, type, row) {
         "</pre> to get the group configuration for this client."
       );
 
+    case "HOSTNAME":
+      var hint = new Array(row.blob2 + row.message.length + 3).join(" ");
+      return (
+        "Hostname contains invalid character <code>" +
+        decodeURIComponent(escape(row.blob1))[row.blob2] +
+        "</code>:<pre>" +
+        hint +
+        "&darr;\n" +
+        row.message +
+        ": " +
+        decodeURIComponent(escape(row.blob1)) +
+        "\n" +
+        hint +
+        "&uarr;</pre>"
+      );
+
+    case "DNSMASQ_CONFIG":
+      return "FTL failed to start due to " + row.message;
+
     default:
       return "Unknown message type<pre>" + JSON.stringify(row) + "</pre>";
   }
 }
 
-$(document).ready(function () {
+$(function () {
   $("#messagesTable").DataTable({
     ajax: {
       url: "api_db.php?messages",
@@ -73,9 +92,9 @@ $(document).ready(function () {
     order: [[0, "asc"]],
     columns: [
       { data: "id", visible: false },
-      { data: "timestamp", width: "8%", render: render_timestamp },
+      { data: "timestamp", width: "8%", render: renderTimestamp },
       { data: "type", width: "8%" },
-      { data: "message", orderable: false, render: render_message },
+      { data: "message", orderable: false, render: renderMessage },
       { data: "blob1", visible: false },
       { data: "blob2", visible: false },
       { data: "blob3", visible: false },
@@ -95,23 +114,15 @@ $(document).ready(function () {
     },
     stateSave: true,
     stateSaveCallback: function (settings, data) {
-      // Store current state in client's local storage area
-      localStorage.setItem("messages-table", JSON.stringify(data));
+      utils.stateSaveCallback("messages-table", data);
     },
     stateLoadCallback: function () {
-      // Receive previous state from client's local storage area
-      var data = localStorage.getItem("messages-table");
+      var data = utils.stateLoadCallback("messages-table");
       // Return if not available
       if (data === null) {
         return null;
       }
 
-      // Parse loaded data
-      data = JSON.parse(data);
-      // Always start on the first page to show most recent queries
-      data.start = 0;
-      // Always start with empty search field
-      data.search.search = "";
       // Reset visibility of ID and blob columns
       var hiddenCols = [0, 4, 5, 6, 7, 8];
       for (var key in hiddenCols) {

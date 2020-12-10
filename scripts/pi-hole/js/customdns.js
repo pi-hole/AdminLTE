@@ -5,6 +5,8 @@
  *  This file is copyright under the latest version of the EUPL.
  *  Please see LICENSE file for your rights under this license. */
 
+/* global utils:false */
+
 var table;
 var token = $("#token").text();
 
@@ -37,7 +39,7 @@ function showAlert(type, message) {
   alertElement.delay(8000).fadeOut(2000);
 }
 
-$(document).ready(function () {
+$(function () {
   $("#btnAdd").on("click", addCustomDNS);
 
   table = $("#customDNSTable").DataTable({
@@ -63,6 +65,18 @@ $(document).ready(function () {
         }
       }
     ],
+    lengthMenu: [
+      [10, 25, 50, 100, -1],
+      [10, 25, 50, 100, "All"]
+    ],
+    order: [[0, "asc"]],
+    stateSave: true,
+    stateSaveCallback: function (settings, data) {
+      utils.stateSaveCallback("LocalDNSTable", data);
+    },
+    stateLoadCallback: function () {
+      return utils.stateLoadCallback("LocalDNSTable");
+    },
     drawCallback: function () {
       $(".deleteCustomDNS").on("click", deleteCustomDNS);
     }
@@ -76,8 +90,8 @@ $(document).ready(function () {
 });
 
 function addCustomDNS() {
-  var ip = $("#ip").val();
-  var domain = $("#domain").val();
+  var ip = utils.escapeHtml($("#ip").val());
+  var domain = utils.escapeHtml($("#domain").val());
 
   showAlert("info");
   $.ajax({
@@ -115,7 +129,7 @@ function deleteCustomDNS() {
     },
     error: function (jqXHR, exception) {
       showAlert("error", "Error while deleting this custom DNS entry");
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }

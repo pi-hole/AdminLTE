@@ -11,41 +11,48 @@ var table;
 var groups = [];
 var token = $("#token").text();
 
-function reload_client_suggestions() {
+function reloadClientSuggestions() {
   $.post(
     "scripts/pi-hole/php/groups.php",
     { action: "get_unconfigured_clients", token: token },
     function (data) {
       var sel = $("#select");
-      var customWasSelected = sel.val() === "custom";
       sel.empty();
+
+      // In order for the placeholder value to appear, we have to have a blank
+      // <option> as the first option in our <select> control. This is because
+      // the browser tries to select the first option by default. If our first
+      // option were non-empty, the browser would display this instead of the
+      // placeholder.
+      sel.append($("<option />"));
+
+      // Add data obtained from API
       for (var key in data) {
         if (!Object.prototype.hasOwnProperty.call(data, key)) {
           continue;
         }
 
         var text = key;
+        var keyPlain = key;
+        if (key.startsWith("IP-")) {
+          // Mock MAC address for address-only devices
+          keyPlain = key.substring(3);
+          text = keyPlain;
+        }
+
+        // Append host name if available
         if (data[key].length > 0) {
           text += " (" + data[key] + ")";
         }
 
-        sel.append($("<option />").val(key).text(text));
-      }
-
-      if (data.length === 0) {
-        $("#ip-custom").prop("disabled", false);
-      }
-
-      sel.append($("<option />").val("custom").text("Custom, specified below..."));
-      if (customWasSelected) {
-        sel.val("custom");
+        sel.append($("<option />").val(keyPlain).text(text));
       }
     },
     "json"
   );
 }
 
-function get_groups() {
+function getGroups() {
   $.post(
     "scripts/pi-hole/php/groups.php",
     { action: "get_groups", token: token },
@@ -57,12 +64,17 @@ function get_groups() {
   );
 }
 
-$(document).ready(function () {
+$(function () {
   $("#btnAdd").on("click", addClient);
+  $("select").select2({
+    tags: true,
+    placeholder: "Select client...",
+    allowClear: true
+  });
 
-  reload_client_suggestions();
-  utils.bsSelect_defaults();
-  get_groups();
+  reloadClientSuggestions();
+  utils.setBsSelectDefaults();
+  getGroups();
 
   $("#select").on("change", function () {
     $("#ip-custom").val("");
@@ -94,12 +106,12 @@ function initTable() {
       $(row).attr("data-id", data.id);
       var tooltip =
         "Added: " +
-        utils.datetime(data.date_added) +
+        utils.datetime(data.date_added, false) +
         "\nLast modified: " +
-        utils.datetime(data.date_modified) +
+        utils.datetime(data.date_modified, false) +
         "\nDatabase ID: " +
         data.id;
-      var ip_name =
+      var ipName =
         '<code id="ip_' +
         data.id +
         '" title="' +
@@ -108,7 +120,7 @@ function initTable() {
         data.ip +
         "</code>";
       if (data.name !== null && data.name.length > 0)
-        ip_name +=
+        ipName +=
           '<br><code id="name_' +
           data.id +
           '" title="' +
@@ -116,11 +128,11 @@ function initTable() {
           '" class="breakall">' +
           data.name +
           "</code>";
-      $("td:eq(0)", row).html(ip_name);
+      $("td:eq(0)", row).html(ipName);
 
       $("td:eq(1)", row).html('<input id="comment_' + data.id + '" class="form-control">');
       var commentEl = $("#comment_" + data.id, row);
-      commentEl.val(data.comment);
+      commentEl.val(utils.unescapeHtml(data.comment));
       commentEl.on("change", editClient);
 
       $("td:eq(2)", row).empty();
@@ -130,13 +142,13 @@ function initTable() {
       var selectEl = $("#multiselect_" + data.id, row);
       // Add all known groups
       for (var i = 0; i < groups.length; i++) {
-        var data_sub = "";
+        var dataSub = "";
         if (!groups[i].enabled) {
-          data_sub = 'data-subtext="(disabled)"';
+          dataSub = 'data-subtext="(disabled)"';
         }
 
         selectEl.append(
-          $("<option " + data_sub + "/>")
+          $("<option " + dataSub + "/>")
             .val(groups[i].id)
             .text(groups[i].name)
         );
@@ -206,28 +218,23 @@ function initTable() {
     ],
     stateSave: true,
     stateSaveCallback: function (settings, data) {
-      // Store current state in client's local storage area
-      localStorage.setItem("groups-clients-table", JSON.stringify(data));
+      utils.stateSaveCallback("groups-clients-table", data);
     },
     stateLoadCallback: function () {
-      // Receive previous state from client's local storage area
-      var data = localStorage.getItem("groups-clients-table");
+      var data = utils.stateLoadCallback("groups-clients-table");
+
       // Return if not available
       if (data === null) {
         return null;
       }
 
-      data = JSON.parse(data);
-      // Always start on the first page to show most recent queries
-      data.start = 0;
-      // Always start with empty search field
-      data.search.search = "";
       // Reset visibility of ID column
       data.columns[0].visible = false;
       // Apply loaded state to table
       return data;
     }
   });
+
   // Disable autocorrect in the search box
   var input = document.querySelector("input[type=search]");
   if (input !== null) {
@@ -240,45 +247,47 @@ function initTable() {
   table.on("order.dt", function () {
     var order = table.order();
     if (order[0][0] !== 0 || order[0][1] !== "asc") {
-      $("#resetButton").show();
+      $("#resetButton").removeClass("hidden");
     } else {
-      $("#resetButton").hide();
+      $("#resetButton").addClass("hidden");
     }
   });
+
   $("#resetButton").on("click", function () {
     table.order([[0, "asc"]]).draw();
-    $("#resetButton").hide();
+    $("#resetButton").addClass("hidden");
   });
 }
 
 function addClient() {
-  var ip = $("#select").val();
-  var comment = $("#new_comment").val();
-  if (ip === "custom") {
-    ip = $("#ip-custom").val().trim();
-  }
+  var ip = $("#select").val().trim();
+  var comment = utils.escapeHtml($("#new_comment").val());
 
   utils.disableAll();
   utils.showAlert("info", "", "Adding client...", ip);
 
   if (ip.length === 0) {
     utils.enableAll();
-    utils.showAlert("warning", "", "Warning", "Please specify a client IP address");
+    utils.showAlert("warning", "", "Warning", "Please specify a client IP or MAC address");
     return;
   }
 
-  // Validate IP address (may contain CIDR details)
-  var ipv6format = ip.includes(":");
-
-  if (!ipv6format && !utils.validateIPv4CIDR(ip)) {
+  // Validate input, can be:
+  // - IPv4 address (with and without CIDR)
+  // - IPv6 address (with and without CIDR)
+  // - MAC address (in the form AA:BB:CC:DD:EE:FF)
+  // - host name (arbitrary form, we're only checking against some reserved charaters)
+  if (utils.validateIPv4CIDR(ip) || utils.validateIPv6CIDR(ip) || utils.validateMAC(ip)) {
+    // Convert input to upper case (important for MAC addresses)
+    ip = ip.toUpperCase();
+  } else if (!utils.validateHostname(ip)) {
     utils.enableAll();
-    utils.showAlert("warning", "", "Warning", "Invalid IPv4 address!");
-    return;
-  }
-
-  if (ipv6format && !utils.validateIPv6CIDR(ip)) {
-    utils.enableAll();
-    utils.showAlert("warning", "", "Warning", "Invalid IPv6 address!");
+    utils.showAlert(
+      "warning",
+      "",
+      "Warning",
+      "Input is neither a valid IP or MAC address nor a valid host name!"
+    );
     return;
   }
 
@@ -291,7 +300,7 @@ function addClient() {
       utils.enableAll();
       if (response.success) {
         utils.showAlert("success", "fas fa-plus", "Successfully added client", ip);
-        reload_client_suggestions();
+        reloadClientSuggestions();
         table.ajax.reload(null, false);
       } else {
         utils.showAlert("error", "", "Error while adding new client", response.message);
@@ -300,7 +309,7 @@ function addClient() {
     error: function (jqXHR, exception) {
       utils.enableAll();
       utils.showAlert("error", "", "Error while adding new client", jqXHR.responseText);
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }
@@ -310,33 +319,32 @@ function editClient() {
   var tr = $(this).closest("tr");
   var id = tr.attr("data-id");
   var groups = tr.find("#multiselect_" + id).val();
-  var ip = tr.find("#ip_" + id).text();
-  var name = tr.find("#name_" + id).text();
-  var comment = tr.find("#comment_" + id).val();
+  var ip = utils.escapeHtml(tr.find("#ip_" + id).text());
+  var name = utils.escapeHtml(tr.find("#name_" + id).text());
+  var comment = utils.escapeHtml(tr.find("#comment_" + id).val());
 
   var done = "edited";
-  var not_done = "editing";
+  var notDone = "editing";
   switch (elem) {
     case "multiselect_" + id:
       done = "edited groups of";
-      not_done = "editing groups of";
+      notDone = "editing groups of";
       break;
     case "comment_" + id:
       done = "edited comment of";
-      not_done = "editing comment of";
+      notDone = "editing comment of";
       break;
     default:
       alert("bad element or invalid data-id!");
       return;
   }
 
-  var ip_name = ip;
   if (name.length > 0) {
-    ip_name += " (" + name + ")";
+    ip += " (" + name + ")";
   }
 
   utils.disableAll();
-  utils.showAlert("info", "", "Editing client...", ip_name);
+  utils.showAlert("info", "", "Editing client...", ip);
   $.ajax({
     url: "scripts/pi-hole/php/groups.php",
     method: "post",
@@ -351,17 +359,12 @@ function editClient() {
     success: function (response) {
       utils.enableAll();
       if (response.success) {
-        utils.showAlert(
-          "success",
-          "glyphicon glyphicon-pencil",
-          "Successfully " + done + " client",
-          ip_name
-        );
+        utils.showAlert("success", "fas fa-pencil-alt", "Successfully " + done + " client", ip);
         table.ajax.reload(null, false);
       } else {
         utils.showAlert(
           "error",
-          "Error while " + not_done + " client with ID " + id,
+          "Error while " + notDone + " client with ID " + id,
           response.message
         );
       }
@@ -371,10 +374,10 @@ function editClient() {
       utils.showAlert(
         "error",
         "",
-        "Error while " + not_done + " client with ID " + id,
+        "Error while " + notDone + " client with ID " + id,
         jqXHR.responseText
       );
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }
@@ -383,15 +386,14 @@ function deleteClient() {
   var tr = $(this).closest("tr");
   var id = tr.attr("data-id");
   var ip = tr.find("#ip_" + id).text();
-  var name = tr.find("#name_" + id).text();
+  var name = utils.escapeHtml(tr.find("#name_" + id).text());
 
-  var ip_name = ip;
   if (name.length > 0) {
-    ip_name += " (" + name + ")";
+    ip += " (" + name + ")";
   }
 
   utils.disableAll();
-  utils.showAlert("info", "", "Deleting client...", ip_name);
+  utils.showAlert("info", "", "Deleting client...", ip);
   $.ajax({
     url: "scripts/pi-hole/php/groups.php",
     method: "post",
@@ -400,14 +402,9 @@ function deleteClient() {
     success: function (response) {
       utils.enableAll();
       if (response.success) {
-        utils.showAlert(
-          "success",
-          "glyphicon glyphicon-trash",
-          "Successfully deleted client ",
-          ip_name
-        );
+        utils.showAlert("success", "far fa-trash-alt", "Successfully deleted client ", ip);
         table.row(tr).remove().draw(false).ajax.reload(null, false);
-        reload_client_suggestions();
+        reloadClientSuggestions();
       } else {
         utils.showAlert("error", "", "Error while deleting client with ID " + id, response.message);
       }
@@ -415,7 +412,7 @@ function deleteClient() {
     error: function (jqXHR, exception) {
       utils.enableAll();
       utils.showAlert("error", "", "Error while deleting client with ID " + id, jqXHR.responseText);
-      console.log(exception);
+      console.log(exception); // eslint-disable-line no-console
     }
   });
 }
